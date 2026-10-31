@@ -1,0 +1,1 @@
+# codex_hangul-key
