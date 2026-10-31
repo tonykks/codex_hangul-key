@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shift 신호 확인</title><link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}body{margin:24px auto;padding:0 20px;max-width:1000px;font:16px/1.7 "Malgun Gothic",sans-serif;color:#233d3d;background:#f4f7f2}section{background:white;border:1px solid #d6e1d8;border-radius:12px;padding:20px;margin:16px 0}h1{font-size:25px}h2{font-size:18px;margin:0 0 10px}button{padding:10px 14px;border:1px solid #bdcfc1;border-radius:8px;background:white;color:inherit;font:inherit;cursor:pointer;margin:3px}button[aria-pressed=true]{background:#17655b;color:white}textarea{width:100%;font:14px/1.6 Consolas,"Malgun Gothic",monospace;border:1px solid #bacdc0;border-radius:7px;padding:10px}#typing{font-size:25px;min-height:70px}#report{height:300px}pre{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;background:#eef4ed;padding:12px;border-radius:8px;min-height:70px}small{color:#5b7265}a{color:#17655b}:focus-visible{outline:3px solid #327dce;outline-offset:2px}
+</style>
+</head>
+<body>
+<h1>Shift 신호 확인 <small>v20261031.3</small></h1>
+<p>연습 프로그램의 정오답 판정을 사용하지 않고 브라우저에 도착한 신호만 확인합니다. 결과는 이 페이지 안에만 표시하며 저장하거나 전송하지 않습니다.</p>
+<section>
+<h2>1. 아래 항목을 차례로 선택해 확인하세요</h2>
+<p>각 버튼을 누른 뒤 해당 키를 한 번 눌렀다 놓으세요. 3·4번은 Shift를 누른 채 E를 누르고 둘 다 놓습니다.</p>
+<div id="steps">
+<button data-step="left">1. 왼쪽 Shift만</button>
+<button data-step="right">2. 오른쪽 Shift만</button>
+<button data-step="rightE">3. 오른쪽 Shift + E</button>
+<button data-step="leftE">4. 왼쪽 Shift + E</button>
+</div>
+<p><label for="typing">선택한 항목의 키를 여기에서 누르세요. 문자 입력도 함께 확인합니다.</label></p>
+<textarea id="typing" autocomplete="off" spellcheck="false" placeholder="여기를 클릭하고 키를 눌러 주세요"></textarea>
+<pre id="signals">아직 수신한 키 신호가 없습니다.</pre>
+</section>
+<section>
+<h2>2. 확인 결과</h2>
+<p>오른쪽 Shift 단독 신호와 E 입력의 <code>shiftKey</code>를 비교합니다. <code>shiftKey=true</code>만으로는 좌우 방향을 알 수 없어, 원래 연습의 정답 조건으로 대신 사용하지 않습니다.</p>
+<textarea id="report" readonly aria-label="신호 확인 결과"></textarea>
+<button id="selectReport">결과 전체 선택</button>
+<p><small>4개 항목을 확인한 뒤 결과를 복사해 채팅에 붙여 주세요. 한글 입력 상태에서 먼저 확인하고, 필요하면 영문 입력 상태에서도 비교할 수 있습니다. 이 결과만으로 키보드 고장이나 특정 설정을 단정하지 않습니다.</small></p>
+</section>
+<p><a href="index.html">연습 화면으로 돌아가기</a></p>
+<script>
+(()=>{
+ const labels={left:'왼쪽 Shift만',right:'오른쪽 Shift만',rightE:'오른쪽 Shift + E',leftE:'왼쪽 Shift + E'};
+ const results=Object.fromEntries(Object.keys(labels).map(id=>[id,{events:[],text:'',attempted:false}]));
+ let step=null;
+ const typing=document.getElementById('typing'),report=document.getElementById('report'),signals=document.getElementById('signals');
+ function render(){
+  report.value='Shift 신호 확인 v20261031.3\n'+Object.entries(results).map(([id,r])=>'\n['+labels[id]+']'+(r.attempted?'':' 미실시')+'\n입력창 문자: '+JSON.stringify(r.text)+'\n'+(r.events.join('\n')||'수신 이벤트 없음')).join('\n');
+  if(step)signals.textContent=results[step].events.slice(-4).join('\n')||'키 신호 대기 중';
+ }
+ document.querySelectorAll('[data-step]').forEach(button=>button.onclick=()=>{
+  step=button.dataset.step;results[step]={events:[],text:'',attempted:true};typing.value='';
+  document.querySelectorAll('[data-step]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+  typing.focus();render();
+ });
+ for(const type of ['keydown','keyup'])window.addEventListener(type,event=>{
+  if(!step||event.target!==typing)return;
+  const e={type,key:event.key,code:event.code,location:event.location,keyCode:event.keyCode,shiftKey:event.shiftKey,modifierShift:event.getModifierState('Shift'),isComposing:event.isComposing,repeat:event.repeat};
+  results[step].events.push(JSON.stringify(e));if(results[step].events.length>16)results[step].events.shift();render();
+ },true);
+ typing.addEventListener('input',()=>{if(step){results[step].text=typing.value;render();}});
+ document.getElementById('selectReport').onclick=()=>{report.focus();report.select();};
+ render();
+})();
+</script>
+</body></html>

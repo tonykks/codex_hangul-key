@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signedIn() { return request.auth != null && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+  function adminId() { return 'xlHPBOk6fmUNi0rv0qYzypQLey43'; }
+  function admin() { return signedIn() && request.auth.uid == adminId(); }
+  function owner(uid) { return signedIn() && request.auth.uid == uid; }
+  function score(inputs, errors) { return inputs - 2 * errors > 0 ? inputs - 2 * errors : 0; }
+  match /students/{uid} {
+   allow get: if owner(uid) || admin();
+   allow list: if admin();
+   allow create: if owner(uid)
+    && request.resource.data.keys().hasAll(['nickname','shortId','createdAt'])
+    && request.resource.data.keys().hasOnly(['nickname','shortId','createdAt'])
+    && request.resource.data.nickname is string && request.resource.data.nickname.size() > 0 && request.resource.data.nickname.size() <= 80
+    && request.resource.data.shortId is string && request.resource.data.shortId.matches('[a-zA-Z0-9]{4}')
+    && uid.matches('.*' + request.resource.data.shortId + '$')
+    && request.resource.data.createdAt == request.time;
+   allow update, delete: if false;
+   match /runs/{runId} {
+    function validRun() {
+     let d = request.resource.data;
+     return d.keys().hasAll(['visitId','inputs','errors','startedAt','endedAt'])
+      && d.keys().hasOnly(['visitId','inputs','errors','startedAt','endedAt'])
+      && d.visitId is string && d.inputs is int && d.errors is int && d.inputs >= 0 && d.errors >= 0 && d.errors <= d.inputs
+      && (d.startedAt == null || d.startedAt is string) && (d.endedAt == null || d.endedAt is string)
+      && get(/databases/$(database)/documents/visits/$(d.visitId)).data.uid == uid;
+    }
+    allow read: if owner(uid) || admin();
+    allow create: if owner(uid) && validRun();
+    allow update: if owner(uid) && validRun() && request.resource.data.visitId == resource.data.visitId
+      && request.resource.data.inputs >= resource.data.inputs && request.resource.data.errors >= resource.data.errors;
+    allow delete: if false;
+    match /chunks/{chunkId} {
+     allow read: if owner(uid) || admin();
+     allow create, update: if owner(uid) && request.resource.data.keys().hasAll(['targetId','start','entries'])
+       && request.resource.data.keys().hasOnly(['targetId','start','entries'])
+       && request.resource.data.targetId is string && request.resource.data.start is int && request.resource.data.start >= 0
+       && request.resource.data.entries is list && request.resource.data.entries.size() <= 1000;
+     allow delete: if false;
+    }
+   }
+  }
+  match /visits/{visitId} {
+   function fields() {
+    let d = request.resource.data;
+    return d.keys().hasAll(['uid','nickname','shortId','loginAt','firstInputAt','logoutAt','lastSeenAt','totalInputs','totalErrors','durationMs','score'])
+     && d.keys().hasOnly(['uid','nickname','shortId','loginAt','firstInputAt','logoutAt','lastSeenAt','totalInputs','totalErrors','durationMs','score'])
+     && d.totalInputs is int && d.totalInputs >= 0 && d.totalErrors is int && d.totalErrors >= 0 && d.totalErrors <= d.totalInputs
+     && d.durationMs is int && d.durationMs >= 0 && d.score == score(d.totalInputs,d.totalErrors)
+     && d.lastSeenAt == request.time;
+   }
+   allow read: if signedIn() && (admin() || resource.data.uid != adminId());
+   allow create: if signedIn() && owner(request.resource.data.uid) && fields()
+    && request.resource.data.nickname == get(/databases/$(database)/documents/students/$(request.auth.uid)).data.nickname
+    && request.resource.data.shortId == get(/databases/$(database)/documents/students/$(request.auth.uid)).data.shortId
+    && request.resource.data.loginAt == request.time && request.resource.data.firstInputAt == null && request.resource.data.logoutAt == null
+    && request.resource.data.totalInputs == 0 && request.resource.data.totalErrors == 0 && request.resource.data.durationMs == 0;
+   allow update: if owner(resource.data.uid) && fields() && resource.data.logoutAt == null
+    && request.resource.data.uid == resource.data.uid && request.resource.data.nickname == resource.data.nickname
+    && request.resource.data.shortId == resource.data.shortId && request.resource.data.loginAt == resource.data.loginAt
+    && request.resource.data.totalInputs >= resource.data.totalInputs && request.resource.data.totalErrors >= resource.data.totalErrors
+    && (request.resource.data.firstInputAt == resource.data.firstInputAt
+        || (resource.data.firstInputAt == null && request.resource.data.firstInputAt == request.time && request.resource.data.totalInputs > 0))
+    && (request.resource.data.logoutAt == null || request.resource.data.logoutAt == request.time)
+    && request.resource.data.durationMs >= resource.data.durationMs
+    && ((request.resource.data.firstInputAt == null && request.resource.data.durationMs == 0)
+       || (request.resource.data.firstInputAt is timestamp
+           && request.resource.data.durationMs <= request.time.toMillis() - request.resource.data.firstInputAt.toMillis() + 10000));
+   allow delete: if false;
+  }
+ }
+}

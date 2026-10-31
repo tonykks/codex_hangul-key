@@ -1,0 +1,1 @@
+{"name":"hangul-key-practice","private":true,"type":"module","scripts":{"build":"node build.mjs","build:site":"node build.mjs && node prepare-site.mjs","check:release":"node release-check.mjs","test":"node --test tests/*.test.js","start":"node serve.mjs"}}
